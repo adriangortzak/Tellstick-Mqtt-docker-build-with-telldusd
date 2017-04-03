@@ -6,7 +6,17 @@ import tellcore.telldus as td
 import tellcore.constants as const
 import re
 import threading
+from ConfigParser import SafeConfigParser
 
+
+config = SafeConfigParser()
+config.read('/tellstick/config.ini')
+
+
+mqtt_host = config.get('mqtt','host')
+mqtt_username = config.get('mqtt','username')
+mqtt_password = config.get('mqtt','password')
+mqtt_port = 1883
 
 
 METHODS = {const.TELLSTICK_TURNON: 'turn on',
@@ -94,24 +104,6 @@ def controller_event(id_, event, type_, new_value, cid):
     print(string)
 
 
-
-parser = argparse.ArgumentParser(description='Listen for Telldus events.')
-
-parser.add_argument(
-    '--all', action='store_true', help='Trace all events')
-parser.add_argument(
-    '--device', action='store_true', help='Trace device events')
-parser.add_argument(
-    '--change', action='store_true', help='Trace device change events')
-parser.add_argument(
-    '--raw', action='store_true', help='Trace raw events')
-parser.add_argument(
-    '--sensor', action='store_true', help='Trace sensor events')
-parser.add_argument(
-    '--controller', action='store_true', help='Trace controller events')
-
-args = vars(parser.parse_args())
-
 try:
     import asyncio
     loop = asyncio.get_event_loop()
@@ -123,37 +115,19 @@ except ImportError:
 core = td.TelldusCore(callback_dispatcher=dispatcher)
 callbacks = []
 
-
-for arg in args:
-    if not (args[arg] or args['all']):
-        continue
-    try:
-        if arg == 'device':
-            callbacks.append(core.register_device_event(device_event))
-        elif arg == 'change':
-            callbacks.append(
-                core.register_device_change_event(device_change_event))
-        elif arg == 'raw':
-            callbacks.append(core.register_raw_device_event(raw_event))
-        elif arg == 'sensor':
-            callbacks.append(core.register_sensor_event(sensor_event))
-        elif arg == 'controller':
-            callbacks.append(core.register_controller_event(controller_event))
-        else:
-            assert arg == 'all'
-    except AttributeError:
-        if not args['all']:
-            raise
-
-
+callbacks.append(core.register_device_event(device_event))
+callbacks.append(core.register_device_change_event(device_change_event))
+callbacks.append(core.register_raw_device_event(raw_event))
+callbacks.append(core.register_sensor_event(sensor_event))
+callbacks.append(core.register_controller_event(controller_event))
 
 def action_sub_thread():
     print "start of mqtt sub"
     client = mqtt.Client()
     client.on_connect = on_connect
     client.on_message = on_message
-    client.username_pw_set("adrian", password="pass")
-    client.connect("gortz.org", 1883, 60)
+    client.username_pw_set(mqtt_username, password=mqtt_password)
+    client.connect(mqtt_host, mqtt_port, 60)
     client.loop_forever()
 
 
@@ -185,18 +159,18 @@ def on_message(client, userdata, msg):
 
 
 def my_publish(topic, message):
-     publish.single(topic, payload=message, qos=0, retain=False, hostname="gortz.org",
-    port=1883, client_id="", keepalive=60, will=None, auth= {'username':"adrian", 'password':"73a90acaae2b1ccc0e969709665bc62f"}, tls=None,
+     publish.single(topic, payload=message, qos=0, retain=False, hostname=mqtt_host,
+    port=mqtt_port, client_id="", keepalive=60, will=None, auth= {'username':mqtt_username, 'password':mqtt_password}, tls=None,
     protocol=mqtt.MQTTv31)
-
-
 
 
 def turn_on_device(id):
     core = td.TelldusCore()
+    core.sensors()
     device = find_device(id, core.devices())
     if device is not None:
         device.turn_on()
+
 
 def turn_off_device(id):
     core = td.TelldusCore()
@@ -212,17 +186,13 @@ def change_device_state(id,state):
         turn_off_device(id)
 
 
-
 def find_device(device, devices):
     for d in devices:
-        print str(d.id)
+        print d
         if str(d.id) == device or d.name == device:
             return d
     print("Device '{}' not found".format(device))
     return None
-
-
-
 
 
 t = threading.Thread(target=action_sub_thread, args = ())

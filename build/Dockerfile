@@ -18,6 +18,7 @@ RUN pip install paho-mqtt
 
 COPY tellstickCallback.py /tellstick/tellstickCallback.py
 COPY startScript.sh /tellstick/startScript.sh
+COPY config.ini /tellstick/config.ini
 COPY tellstick.conf /etc/tellstick.conf
 
 # Clean up
