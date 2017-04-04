@@ -76,7 +76,7 @@ mqtt:
     password: test2
 ```
 
-Sensors to send to Mqtt (Optional)
+Sensors that trigger a publish to mqtt broker with its sensor value received by the tellstick (Optional)
 ```yml
 sensor: 
   - id: 183
@@ -93,7 +93,7 @@ sensor:
     mqttRoom: bedroom
     mqttSensorType: humidity
 ```
-Raw message to send to Mqtt (Optional)
+Raw message of devices that should trigger a publish to Mqtt broker with the payload specified (Optional)
 ```yml
 raw:
   - tellstickMessage: class:command;protocol:arctech;model:selflearning;house:15139302;unit:10;group:0;method:turnon;
@@ -103,7 +103,7 @@ raw:
     mqttPayload: 1
 ```
 
-Switch mqtt listener (Optional)
+Switch mqtt listener with id of tellstick that should be turned ON/OFF (Optional)
 ```yml
 switch: 
   - mqttRoom: livingroom
