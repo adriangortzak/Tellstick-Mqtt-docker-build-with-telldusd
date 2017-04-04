@@ -1,4 +1,4 @@
-# Tellstick Duo Mqtt docker build
+# Tellstick Duo gateway to Mqtt, docker build
 
 ### Concept
 This service will work as a gateway between the tellstick duo and a mqtt broker.
