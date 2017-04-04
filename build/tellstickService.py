@@ -6,17 +6,46 @@ import tellcore.telldus as td
 import tellcore.constants as const
 import re
 import threading
-from ConfigParser import SafeConfigParser
+from collections import namedtuple
+import ruamel.yaml as yaml
 
+with open("/tellstick/config.yaml", 'r') as stream:
+  out = yaml.safe_load(stream)
+  print "[info] getting the mqtt settings"
+  mqtt_host = out['mqtt']['host']
+  mqtt_username = out['mqtt']['authentication']['username']
+  mqtt_password = out['mqtt']['authentication']['password']
+  mqtt_port = out['mqtt']['port']
 
-config = SafeConfigParser()
-config.read('/tellstick/config.ini')
+  print "[info] getting my sensors"
+  sensors = []
+  try:
+    Sensor = namedtuple("Sensor", "id protocol dataType model mqttRoom mqttSensorType")
+    for s in out['sensor']:
+      mysensor = Sensor(s['id'],s['protocol'],s['dataType'], s['model'], s['mqttRoom'], s['mqttSensorType'])
+      sensors.append(mysensor)
+  except:
+    print "[info] No senors in config"
 
+  print "[info] getting my switches"
+  switches = []
+  try:
+    Switch = namedtuple("Switch", "mqttRoom mqttDescription tellstickDeviceId")
+    for sw in out['switch']:
+      mySwitch = Switch(sw['mqttRoom'],sw['mqttDescription'],sw['tellstickDeviceId'])
+      switches.append(mySwitch)
+  except:
+    print "[info] No switches in config"
 
-mqtt_host = config.get('mqtt','host')
-mqtt_username = config.get('mqtt','username')
-mqtt_password = config.get('mqtt','password')
-mqtt_port = 1883
+  print "[info] getting my raw triggers"
+  raw = []
+  try:
+    Raw = namedtuple("Raw", "tellstickMessage mqttRoom mqttDescription mqttPayload mqttSensorType")
+    for r in out['raw']:
+      myRaw = Raw(r['tellstickMessage'],r['mqttRoom'],r['mqttDescription'],r['mqttPayload'],r['mqttSensorType'])
+      raw.append(myRaw)
+  except:
+    print "[info] No switches in config"
 
 
 METHODS = {const.TELLSTICK_TURNON: 'turn on',
@@ -65,30 +94,26 @@ def device_change_event(id_, event, type_, cid):
 
 
 def raw_event(data, controller_id, cid):
-    m = re.search(r"class:sensor;protocol:([a-z]{1,12});id:([0-9]{1,3});model:temperaturehumidity;humidity:[0-9]{1,2};temp:([0-9]{1,2}.[0-9])", data)
-    if m:
-        if m.group(1) == "fineoffset" and m.group(2) == "135":
-            my_publish("sensors/living_room/temperature/"+str(m.group(2))+"/sensors",m.group(3))
-    elif data == "class:command;protocol:arctech;model:selflearning;house:15139302;unit:10;group:0;method:turnon;":
-        my_publish("sensors/hall/motion/15139302/sensors",1)
-    else:
-        string = "[RAW] {0} <- {1}".format(controller_id, data)
-        print(string)
+  for r in raw:
+    if r.tellstickMessage == data:
+        my_publish("sensors/"+ r.mqttRoom +"/"+ r.mqttSensorType +"/"+ r.mqttDescription +"/sensors",r.mqttPayload)
+
+  string = "[RAW] {0} <- {1}".format(controller_id, data)
+  print(string)
+
+
+def sensor_handler(id, protocol,model,dataType,value):
+  for s in sensors:
+    if str(s.id) == str(id) and s.protocol == protocol and s.model == model and s.dataType == dataType:
+      my_publish("sensors/"+ s.mqttRoom +"/"+ s.mqttSensorType  +"/"+str(id)+"/sensors", value)
+      return True
+  return False
 
 
 def sensor_event(protocol, model, id_, dataType, value, timestamp, cid):
-    if id_ == 135 and protocol =="fineoffset" and model=="temperaturehumidity":
-        my_publish("sensors/living_room/humidity/"+str(id_)+"/sensors", value)
-    elif id_ == 136 and protocol =="fineoffset" and model=="temperature":
-        my_publish("sensors/outdoors/temperature/"+str(id_)+"/sensors", value)
-    elif id_ == 183 and protocol =="fineoffset" and model=="temperaturehumidity" and dataType == 1:
-        my_publish("sensors/bedroom/temperature/"+str(id_)+"/sensors", value)
-    elif id_ == 183 and protocol =="fineoffset" and model=="temperaturehumidity" and dataType == 2:
-        my_publish("sensors/bedroom/humidity/"+str(id_)+"/sensors", value)
-    else:
+    if sensor_handler(id_,protocol,model,dataType, value) == False:
         string = "[SENSOR] {0} [{1}/{2}] ({3}) @ {4} <- {5}".format(id_, protocol, model, dataType, timestamp, value)
         print(string)
-
 
 
 def controller_event(id_, event, type_, new_value, cid):
@@ -132,6 +157,7 @@ def action_sub_thread():
 
 
 def listen_thread():
+    print "start tellstick listen thread"
     try:
         if loop:
             loop.run_forever()
@@ -147,16 +173,22 @@ def listen_thread():
 def on_connect(client, userdata, rc):
     client.subscribe("devices/tellstick/+/+")
 
+def mqtt_trigger_handler(room,description,msg):
+    for sw in switches:
+      if sw.mqttRoom == room  and  sw.mqttDescription == description:
+        change_device_state(str(sw.tellstickDeviceId),str(msg.payload))
+        return True
+    return False
+
+
 
 def on_message(client, userdata, msg):
-    print "Topic: ", msg.topic+ '\nMessage: '+str(msg.payload)
     m = re.search(r"devices\/tellstick\/([a-zA-Z0-9_]{1,30})\/([a-zA-Z0-9_]{1,30})",msg.topic)
     if m:
-        if m.group(1) == "living_room" and m.group(2) == "tv_lamp":
-            change_device_state('2',str(msg.payload))
-        elif m.group(1) == "man_cave" and m.group(2) == "desk_lamp":
-            change_device_state('1',str(msg.payload))
-
+        if mqtt_trigger_handler(m.group(1),m.group(2),msg) == False:
+          print "Not listed trigger in room: [" + m.group(1) + "] with  description: [" + m.group(2)+ "]"
+    else:
+      print "Recived a topic that wasn't supported topic: ["+ msg.topic + "]" 
 
 def my_publish(topic, message):
      publish.single(topic, payload=message, qos=0, retain=False, hostname=mqtt_host,
@@ -194,11 +226,12 @@ def find_device(device, devices):
     print("Device '{}' not found".format(device))
     return None
 
-
+print "start thread 1"
 t = threading.Thread(target=action_sub_thread, args = ())
 t.daemon = True
 t.start()
 
+print "start thread 2"
 t2 = threading.Thread(target=listen_thread(), args = ())
 t2.daemon = True
 t2.start()
