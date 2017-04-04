@@ -94,18 +94,20 @@ def device_change_event(id_, event, type_, cid):
 
 
 def raw_event(data, controller_id, cid):
+  handled = 0
   for r in raw:
     if r.tellstickMessage == data:
-        my_publish("sensors/"+ r.mqttRoom +"/"+ r.mqttSensorType +"/"+ r.mqttDescription +"/sensors",r.mqttPayload)
-
-  string = "[RAW] {0} <- {1}".format(controller_id, data)
-  print(string)
+        my_publish("sensors/"+ str(r.mqttRoom) +"/"+ str(r.mqttSensorType) +"/"+ str(r.mqttDescription) +"/sensors",r.mqttPayload)
+        handled =1
+  if handled == 0:
+    string = "[RAW] {0} <- {1}".format(controller_id, data)
+    print(string)
 
 
 def sensor_handler(id, protocol,model,dataType,value):
   for s in sensors:
     if str(s.id) == str(id) and s.protocol == protocol and s.model == model and s.dataType == dataType:
-      my_publish("sensors/"+ s.mqttRoom +"/"+ s.mqttSensorType  +"/"+str(id)+"/sensors", value)
+      my_publish("sensors/"+ str(s.mqttRoom) +"/"+ str(s.mqttSensorType)  +"/"+str(id)+"/sensors", value)
       return True
   return False
 
@@ -147,7 +149,7 @@ callbacks.append(core.register_sensor_event(sensor_event))
 callbacks.append(core.register_controller_event(controller_event))
 
 def action_sub_thread():
-    print "start of mqtt sub"
+    print "[info] start of mqtt sub\n"
     client = mqtt.Client()
     client.on_connect = on_connect
     client.on_message = on_message
@@ -157,7 +159,7 @@ def action_sub_thread():
 
 
 def listen_thread():
-    print "start tellstick listen thread"
+    print "[info] start tellstick listen thread\n"
     try:
         if loop:
             loop.run_forever()
@@ -186,9 +188,9 @@ def on_message(client, userdata, msg):
     m = re.search(r"devices\/tellstick\/([a-zA-Z0-9_]{1,30})\/([a-zA-Z0-9_]{1,30})",msg.topic)
     if m:
         if mqtt_trigger_handler(m.group(1),m.group(2),msg) == False:
-          print "Not listed trigger in room: [" + m.group(1) + "] with  description: [" + m.group(2)+ "]"
+          print "[Error] Not listed trigger in room: [" + m.group(1) + "] with  description: [" + m.group(2)+ "]"
     else:
-      print "Recived a topic that wasn't supported topic: ["+ msg.topic + "]" 
+      print "[Error] Recived a topic that wasn't supported topic: ["+ msg.topic + "]" 
 
 def my_publish(topic, message):
      publish.single(topic, payload=message, qos=0, retain=False, hostname=mqtt_host,
@@ -223,15 +225,13 @@ def find_device(device, devices):
         print d
         if str(d.id) == device or d.name == device:
             return d
-    print("Device '{}' not found".format(device))
+    print("[Error] Device '{}' not found".format(device))
     return None
 
-print "start thread 1"
 t = threading.Thread(target=action_sub_thread, args = ())
 t.daemon = True
 t.start()
 
-print "start thread 2"
 t2 = threading.Thread(target=listen_thread(), args = ())
 t2.daemon = True
 t2.start()

@@ -23,7 +23,7 @@ RUN sed -i -- 's/nobody/root/g' /etc/tellstick.conf && \
     sed -i -- 's/plugdev/root/g' /etc/tellstick.conf
 
 
-COPY tellstickCallback.py /tellstick/tellstickCallback.py
+COPY tellstickService.py /tellstick/tellstickService.py
 COPY config.yaml /tellstick/config.yaml
 
 
