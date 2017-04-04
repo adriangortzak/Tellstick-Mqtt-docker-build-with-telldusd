@@ -4,7 +4,7 @@
 This service will work as a gateway between the tellstick duo and a mqtt broker.
 
 #### The service can:
-* Send sensordata from the tellstick to mqtt messages
+* Send sensordata from the tellstick to mqtt broker
 * Change state (turn on/off) a device on an mqtt trigger
 
 #### Mqtt structure:
