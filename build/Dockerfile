@@ -5,29 +5,27 @@ RUN apt-get update -y && \
     sh -c 'echo "deb http://download.telldus.com/debian/ stable main" >> /etc/apt/sources.list' && \
     apt-key adv --fetch-keys http://download.telldus.se/debian/telldus-public.key && \
     apt-get update -y && \
-    apt-get install -y telldus-core libftdi1 && \
-    /etc/init.d/telldusd start
+    apt-get install -y telldus-core libftdi1
 
 RUN apt-get update -y && \
-    apt-get install python-pip python-dev build-essential -y && \
-    pip install --upgrade pip && \
-    pip install --upgrade virtualenv && \
-    pip install tellcore-py
+    apt-get install python-pip python-dev build-essential -y
 
-RUN pip install paho-mqtt
+RUN pip install --upgrade pip && \
+    pip install --upgrade virtualenv && \
+    pip install tellcore-py && \
+    pip install paho-mqtt && \
+    pip install pylibftdi && \
+    pip install crcmod
 
 RUN apt-get install libyaml-dev -y && \
     pip install ruamel.yaml
 
-RUN sed -i -- 's/nobody/root/g' /etc/tellstick.conf && \
-    sed -i -- 's/plugdev/root/g' /etc/tellstick.conf
-
-
-COPY tellstickCallback.py /tellstick/tellstickCallback.py
+COPY tellstickService.py /tellstick/tellstickService.py
 COPY config.yaml /tellstick/config.yaml
+COPY rf433 /tellstick/rf433
 
 
 # Clean up
 RUN apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
-CMD /etc/init.d/telldusd start && python -u /tellstick/tellstickService.py
+CMD python -u /tellstick/tellstickService.py
