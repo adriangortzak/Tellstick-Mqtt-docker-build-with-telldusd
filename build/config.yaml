@@ -2,7 +2,7 @@ mqtt:
   host: gortz.org
   port: 1883
   authentication:
-    username: test
+    username: test2
     password: test2
 
 
