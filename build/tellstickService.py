@@ -1,8 +1,8 @@
+
 import argparse
 import sys
 import paho.mqtt.client as mqtt
 import paho.mqtt.publish as publish
-import tellcore.constants as const
 import re
 import threading
 from collections import namedtuple
@@ -11,7 +11,6 @@ import ruamel.yaml as yaml
 import time
 import datetime
 from pylibftdi import USB_PID_LIST, USB_VID_LIST, Device as TellStick
-sys.path.append('/etc/tellstick/rf433')
 from rf433.Protocol import Protocol, Device
 from Queue import *
 
@@ -34,50 +33,37 @@ def reader():
     while True:
         data = tellstick.read(1024)
         if data != '':
-#            print '<< %s' % data
           parseReading(data)
+          
 
 def writer():
-#    print "I'm in writer startup"
     while True:
         item = q.get()
         if item is None:
             break
-#        print "I've got something in writer now"
         protocol = item[0]
         model = item[1]
         house = item[2]
         unit = item[3]
         command = item[4]
         msg = ""
-
-        # print protocol
-        # print model
-        # print house
-        # print unit
-        # print command
         
         myDevice = Protocol.protocolInstance(protocol)
         myDevice.setModel(model)
         myDevice.setParameters({'house': house, 'unit': unit})
         
         if command == "0":
-#          print "command is 0"
           msg = myDevice.stringForMethod(Device.TURNOFF, 0)
         elif command == "1":
-#          print "command is 1"
           msg = myDevice.stringForMethod(Device.TURNON, 0)
-#        print "before sending"
-#        print msg
         if 'S' in msg:
           toSend = 'S%s+' % msg['S']
-#          print '>> %s' % toSend.encode('string_escape')
-          for x in range(1,6):
+          for x in range(1,2):
             tellstick.write(toSend)
-            time.sleep(2) # Make sure you sleep or else it won't like getting another command so soon!
+            time.sleep(1) # Make sure you sleep or else it won't like getting another command so soon! Was 2 seconds before
         else:
             print "nothing to send"
-            time.sleep(1)
+            time.sleep(0.1)
 def join():
     # Use of a timeout allows Ctrl-C interruption
     t1.join(timeout=1e6)
@@ -85,43 +71,55 @@ def join():
 
 
 def parseReading(msg):
-    m = re.search(r"protocol:([a-z]+);model:([a-z]+);data:(.+);", msg)
-    if m is not None:
-      print "I'm in parser"
-
-      # print m.group(1)
-      # print m.group(2)
-      # print m.group(3)
-      protocol = m.group(1)
-      model = m.group(2)
-      data_hex = m.group(3)
-      print data_hex
-      data = int(data_hex, 16)
-      house = ( data & 0xFFFFFFC0 ) >> 6
-      group = ( data & 0x00000020 ) >> 5
-      method = ( data & 0x00000010 ) >> 4
-      unit = (data & 0x0000000F) + 1
-      
-      # print protocol
-      # print model
-      # print house
-      # print group
-      # print method
-      # print unit
-
-      # Fix for mismatch between what is recognized and what is required to send a message. E.g. A selflearning-switch is detected as model selflearning and not selflearning-switch
-      if model == "selflearning":
-          model = "selflearning-switch"
-          
-      for s in switches:
-        if str(s.protocol) == protocol and s.model == model and s.house == house and s.unit == unit:
-          with lock:
-            shared_dict[s.id] = (datetime.datetime.now(), method)
-          my_publish("devices/tellstick/"+ s.mqttRoom +"/"+ s.mqttDescription, method)
+    mswitch = re.search(r"protocol:([a-z]+);model:([a-z]+);data:(.+);", msg)
+    msensor = re.search(r"class:sensor;protocol:([a-z]+);data:(.+);", msg)
+    if mswitch is not None:
+      protocol = mswitch.group(1)
+      model = mswitch.group(2)
+      data_hex = mswitch.group(3)
+      if protocol == "arctech":
+        data = int(data_hex, 16)
+        house = int( ( data & 0xFFFFFFC0 ) >> 6)
+        group = int( ( data & 0x00000020 ) >> 5)
+        method = int( ( data & 0x00000010 ) >> 4)
+        unit = int( (data & 0x0000000F) + 1)
+        
+        # Fix for mismatch between what is recognized and what is required to send a message. E.g. A selflearning-switch is detected as model selflearning and not selflearning-switch
+        if model == "selflearning":
+          model = "selflearning-switch"  
+        for s in listeners:
+          if str(s.protocol) == protocol and s.model == model and s.house == house and s.unit == unit:
+            print "updated timestamp for " + str(s.id)
+            with lock:
+              shared_dict[s.id] = (datetime.datetime.now(), method)
+            deviceType = str(s.__class__.__name__)
+            topic = deviceType + "s/tellstick/"+ s.mqttRoom +"/"+ s.mqttDescription
+            my_publish(topic, method)
+#          else:
+#            print "Switch was not found in config"
+            
+    elif msensor is not None:
+      protocol = msensor.group(1)
+      data_hex = msensor.group(2)
+      if protocol == "fineoffset": # Bit 0-3 unidentified, bit 4-11 sensorID, bit 12-15 unidentified scrap, bit 16-23 temp, bit 24-31 humidity, 32-39 unidentified scrap
+        data = int(data_hex, 16)
+        sensorID = int(( data & 0x0FF0000000 ) >> 28)
+        temp = float((data & 0x0000FF0000 ) >> 16) / 10
+        humidity = int((data & 0x000000FF00 ) >> 8)
+        if humidity == 255:
+            model = "temperature"
         else:
-            print "Switch was not found in config"
+            model = "temperaturehumidity"
+
+        for s in sensors: # Maybe not keep looking through all sensors after finding a match.
+          if str(s.protocol) == protocol and s.model == model and s.id == sensorID:
+            my_publish("sensors/" + s.mqttRoom + "/temperature/" + str(s.id) + "/sensors", temp)
+            if model == "temperaturehumidity":
+              my_publish("sensors/" + s.mqttRoom + "/humidity/" + str(s.id) + "/sensors", humidity) 
+              
+
     
-with open("/tellstick/config.yaml", 'r') as stream:
+with open("./config.yaml", 'r') as stream:
   out = yaml.safe_load(stream)
   print "[info] getting the mqtt settings"
   mqtt_host = out['mqtt']['host']
@@ -132,82 +130,35 @@ with open("/tellstick/config.yaml", 'r') as stream:
   print "[info] getting my sensors"
   sensors = []
   try:
-    Sensor = namedtuple("Sensor", "id protocol dataType model mqttRoom mqttSensorType")
+    Sensor = namedtuple("Sensor", "id protocol model mqttRoom")
     for s in out['sensor']:
-      mysensor = Sensor(s['id'],s['protocol'],s['dataType'], s['model'], s['mqttRoom'], s['mqttSensorType'])
+      mysensor = Sensor(s['device']['id'],s['device']['protocol'], s['device']['model'], s['mqttRoom'])
       sensors.append(mysensor)
   except:
     print "[info] No senors in config"
 
   print "[info] getting my switches"
-  switches = []
+  listeners = []
+  id = 0
   try:
-    Switch = namedtuple("Switch", "mqttRoom mqttDescription protocol model house unit id")
+    device = namedtuple("device", "mqttRoom mqttDescription protocol model house unit id")
     for sw in out['switch']:
-      mySwitch = Switch(sw['mqttRoom'],sw['mqttDescription'],sw['protocol'],sw['model'],sw['house'],sw['unit'],sw['id'])
-      switches.append(mySwitch)
+      myDevice = device(sw['mqtt']['room'],sw['mqtt']['description'],sw['device']['protocol'],sw['device']['model'],sw['device']['house'],sw['device']['unit'], id)
+      id += 1
+      listeners.append(myDevice)
   except:
     print "[info] No switches in config"
 
-  print "[info] getting my raw triggers"
-  raw = []
+  print "[info] getting my triggers"
   try:
-    Raw = namedtuple("Raw", "tellstickMessage mqttRoom mqttDescription mqttPayload mqttSensorType")
-    for r in out['raw']:
-      myRaw = Raw(r['tellstickMessage'],r['mqttRoom'],r['mqttDescription'],r['mqttPayload'],r['mqttSensorType'])
-      raw.append(myRaw)
+    trigger = namedtuple("trigger", "mqttRoom mqttDescription protocol model house unit id")
+    for r in out['trigger']:
+      myTrigger = trigger(r['mqtt']['room'],r['mqtt']['description'],r['device']['protocol'],r['device']['model'],r['device']['house'],r['device']['unit'], id)
+      id += 1
+      listeners.append(myTrigger)
   except:
     print "[info] No switches in config"
 
-
-METHODS = {const.TELLSTICK_TURNON: 'turn on',
-           const.TELLSTICK_TURNOFF: 'turn off',
-           const.TELLSTICK_BELL: 'bell',
-           const.TELLSTICK_TOGGLE: 'toggle',
-           const.TELLSTICK_DIM: 'dim',
-           const.TELLSTICK_LEARN: 'learn',
-           const.TELLSTICK_EXECUTE: 'execute',
-           const.TELLSTICK_UP: 'up',
-           const.TELLSTICK_DOWN: 'down',
-           const.TELLSTICK_STOP: 'stop'}
-
-EVENTS = {const.TELLSTICK_DEVICE_ADDED: "added",
-          const.TELLSTICK_DEVICE_REMOVED: "removed",
-          const.TELLSTICK_DEVICE_CHANGED: "changed",
-          const.TELLSTICK_DEVICE_STATE_CHANGED: "state changed"}
-
-CHANGES = {const.TELLSTICK_CHANGE_NAME: "name",
-           const.TELLSTICK_CHANGE_PROTOCOL: "protocol",
-           const.TELLSTICK_CHANGE_MODEL: "model",
-           const.TELLSTICK_CHANGE_METHOD: "method",
-           const.TELLSTICK_CHANGE_AVAILABLE: "available",
-           const.TELLSTICK_CHANGE_FIRMWARE: "firmware"}
-
-TYPES = {const.TELLSTICK_CONTROLLER_TELLSTICK: 'tellstick',
-         const.TELLSTICK_CONTROLLER_TELLSTICK_DUO: "tellstick duo",
-         const.TELLSTICK_CONTROLLER_TELLSTICK_NET: "tellstick net"}
-
-def raw_event(data, controller_id, cid):
-  for r in raw:
-    if r.tellstickMessage == data:
-        my_publish("sensors/"+ r.mqttRoom +"/"+ r.mqttSensorType +"/"+ r.mqttDescription +"/sensors",r.mqttPayload)
-
-  string = "[RAW] {0} <- {1}".format(controller_id, data)
-  print(string)
-
-
-def sensor_handler(id, protocol,model,dataType,value):
-  for s in sensors:
-    if str(s.id) == str(id) and s.protocol == protocol and s.model == model and s.dataType == dataType:
-      my_publish("sensors/"+ s.mqttRoom +"/"+ s.mqttSensorType  +"/"+str(id)+"/sensors", value)
-      return True
-  return False
-
-
-def sensor_event(protocol, model, id_, dataType, value, timestamp, cid):
-    if sensor_handler(id_,protocol,model,dataType, value) == False:
-        string = "[SENSOR] {0} [{1}/{2}] ({3}) @ {4} <- {5}".format(id_, protocol, model, dataType, timestamp, value)
-        print(string)
 
 def action_sub_thread():
     print "start of mqtt sub"
@@ -237,10 +188,9 @@ def on_connect(client, userdata, rc):
     client.subscribe("devices/tellstick/+/+")
 
 def mqtt_trigger_handler(room,description,msg):
-    print "I'm in trigger handler"
-    for sw in switches:
+#    print "I'm in trigger handler"
+    for sw in listeners:
       if sw.mqttRoom == room  and  sw.mqttDescription == description:
-#        print "matched room and description"
         now = datetime.datetime.now()
         if bool(shared_dict) and sw.id in shared_dict:
           with lock:
@@ -251,16 +201,11 @@ def mqtt_trigger_handler(room,description,msg):
           elapsed = datetime.timedelta(seconds=10)
           lastState = 0
           
-        if elapsed > datetime.timedelta(seconds=5) or int(lastState) != int(msg.payload):
-          # print "comparison"
-          # print elapsed
-          # print datetime.timedelta(seconds=5)
-          # print elapsed > datetime.timedelta(seconds=5)
-          # print lastupdated[1]
-          # print msg.payload
-          # print int(lastupdated[1]) != int(msg.payload)
+        if elapsed > datetime.timedelta(seconds=5) :
           q.put( (sw.protocol, sw.model, sw.house, sw.unit, msg.payload) )
-          print "message put in queue"
+          with lock:
+            shared_dict[sw.id] = (datetime.datetime.now(), msg.payload)
+          print "message put in queue for id " + str(sw.id)
         else:
           print "Will not repeat sniffed message"
         return True
@@ -269,10 +214,10 @@ def mqtt_trigger_handler(room,description,msg):
 
 def on_message(client, userdata, msg):
     m = re.search(r"devices\/tellstick\/([a-zA-Z0-9_]{1,30})\/([a-zA-Z0-9_]{1,30})",msg.topic)
-    print "received message:"
-    print m.group(1)
-    print m.group(2)
-    print msg.payload
+    # print "received message:"
+    # print m.group(1)
+    # print m.group(2)
+    # print msg.payload
     if m:
         if mqtt_trigger_handler(m.group(1),m.group(2),msg) == False:
           print "Not listed trigger in room: [" + m.group(1) + "] with  description: [" + m.group(2)+ "]"
@@ -302,11 +247,12 @@ t2 = threading.Thread(target=reader, args = ())
 t2.daemon = True
 t2.start()
 
-t3 = threading.Thread(target=writer(), args = ())
+t3 = threading.Thread(target=writer, args = ())
 t3.daemon = True
 t3.start()
 
 while 1:
-   pass
+  time.sleep(0.1)
+  pass
 
 

@@ -1,0 +1,36 @@
+class:sensor;protocol:fineoffset;data:4B70E41A22;
+
+
+
+class:sensor;protocol:fineoffset;data:4870E51455;
+20 humidity
+22.9 temp
+
+0100 10000111 0000 11100101 0001 0100 0101 0101
+     10000111      11100101 0001 0100
+
+
+
+
+class:sensor;protocol:fineoffset;id:136;model:temperature;temp:8.7;
+class:sensor;protocol:fineoffset;data:488057FFCC;
+
+
+0100 10001000 0000 01010111 1111 1111 1100 1100
+
+     10001000      01010111
+                   01010111
+
+
+
+class:sensor;protocol:fineoffset;data:4B70E41A22; 183 22.8, 26
+
+0100 10110111 0000 11100100 00011010 0010 0010
+     10110111      11100100 00011010 
+      id 183     temp:22.8  26%RH
+
+
+
+protocol:arctech;model:selflearning;data:0x39C07989;
+0000 0000 0011 1001 1100 0000 0111 1001 1000 1001
+
