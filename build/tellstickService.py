@@ -125,7 +125,7 @@ def parseReading(msg):
               
 
     
-with open(configpath + "/config.yaml", 'r') as stream:
+with open(configpath + "config.yaml", 'r') as stream:
   out = yaml.safe_load(stream)
   print "[info] getting the mqtt settings"
   mqtt_host = out['mqtt']['host']
