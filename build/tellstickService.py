@@ -63,7 +63,7 @@ def writer():
           msg = myDevice.stringForMethod(Device.TURNON, 0)
         if 'S' in msg:
           toSend = 'S%s+' % msg['S']
-          for x in range(1,sendcount+1):
+          for x in range(0,sendcount):
             tellstick.write(toSend)
             time.sleep(1) # Make sure you sleep or else it won't like getting another command so soon! Was 2 seconds before
         else:
