@@ -50,6 +50,7 @@ def writer():
         house = item[2]
         unit = item[3]
         command = item[4]
+        sendcount = item[5]
         msg = ""
         
         myDevice = Protocol.protocolInstance(protocol)
@@ -62,7 +63,7 @@ def writer():
           msg = myDevice.stringForMethod(Device.TURNON, 0)
         if 'S' in msg:
           toSend = 'S%s+' % msg['S']
-          for x in range(1,2):
+          for x in range(0,sendcount):
             tellstick.write(toSend)
             time.sleep(1) # Make sure you sleep or else it won't like getting another command so soon! Was 2 seconds before
         else:
@@ -146,18 +147,26 @@ with open(configpath + "config.yaml", 'r') as stream:
   print "[info] getting my switches"
   listeners = []
   try:
-    device = namedtuple("device", "mqttRoom mqttDescription protocol model house unit id")
+    device = namedtuple("device", "mqttRoom mqttDescription protocol model house unit id sendcount")
     for sw in out['switch']:
-      myDevice = device(sw['mqtt']['room'],sw['mqtt']['description'],sw['device']['protocol'],sw['device']['model'],sw['device']['house'],sw['device']['unit'], str(sw['mqtt']['room'] + '/' + sw['mqtt']['description']))
+      try:
+        sendcount = sw['sendcount']
+      except:
+        sendcount = 1
+      myDevice = device(sw['mqtt']['room'],sw['mqtt']['description'],sw['device']['protocol'],sw['device']['model'],sw['device']['house'],sw['device']['unit'], str(sw['mqtt']['room'] + '/' + sw['mqtt']['description']),sendcount)
       listeners.append(myDevice)
   except:
     print "[info] No switches in config"
 
   print "[info] getting my triggers"
   try:
-    trigger = namedtuple("trigger", "mqttRoom mqttDescription protocol model house unit id")
+    trigger = namedtuple("trigger", "mqttRoom mqttDescription protocol model house unit id sendcount")
     for r in out['trigger']:
-      myTrigger = trigger(r['mqtt']['room'],r['mqtt']['description'],r['device']['protocol'],r['device']['model'],r['device']['house'],r['device']['unit'], str(sw['mqtt']['room'] + '/' + sw['mqtt']['description']))
+      try:
+        sendcount = sw['sendcount']
+      except:
+        sendcount = 1
+      myTrigger = trigger(r['mqtt']['room'],r['mqtt']['description'],r['device']['protocol'],r['device']['model'],r['device']['house'],r['device']['unit'], str(sw['mqtt']['room'] + '/' + sw['mqtt']['description']),sendcount)
       listeners.append(myTrigger)
   except:
     print "[info] No switches in config"
@@ -190,7 +199,7 @@ def mqtt_trigger_handler(room,description,msg):
           
         if elapsed > datetime.timedelta(seconds=5) or int(lastState) != int(msg.payload):
           print "MQTT device " + str(sw.id) + " setting state " + str(msg.payload)
-          q.put( (sw.protocol, sw.model, sw.house, sw.unit, msg.payload) )
+          q.put( (sw.protocol, sw.model, sw.house, sw.unit, msg.payload,sw.sendcount) )
           with lock:
             shared_dict[sw.id] = (datetime.datetime.now(), msg.payload)
         return True
