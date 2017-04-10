@@ -1,60 +1,46 @@
 mqtt: 
-  host: gortz.org
+  host: mqtt.example.com
   port: 1883
   authentication:
-    username: test2
-    password: test2
+    username: testuser
+    password: testpassword
 
 
 sensor: 
-  - id: 183
-    protocol: fineoffset
-    model: temperaturehumidity
-    dataType: 1
+  - device:
+      id: 183
+      protocol: fineoffset
+      model: temperaturehumidity
     mqttRoom: bedroom
-    mqttSensorType: temperature
+ 
 
-  - id: 183
-    protocol: fineoffset
-    model: temperaturehumidity
-    dataType: 2
-    mqttRoom: bedroom
-    mqttSensorType: humidity
-
-  - id: 135
-    protocol: fineoffset
-    model: temperaturehumidity
-    dataType: 1
-    mqttRoom: living_room
-    mqttSensorType: temperature
-
-  - id: 135
-    protocol: fineoffset
-    model: temperaturehumidity
-    dataType: 2
-    mqttRoom: living_room
-    mqttSensorType: humidity
-
-  - id: 136
-    protocol: fineoffset
-    model: temperature
-    dataType: 1
-    mqttRoom: outdoors
-    mqttSensorType: temperature
+switch:
+  - device:
+      protocol: arctech
+      model: selflearning-switch
+      house: 1234567
+      unit: 1
+    mqtt:
+      room: bedroom 
+      description: window_lamp
+    sendcount: 4
+ 
+ - device:
+      protocol: arctech
+      model: selflearning-switch
+      house: 2134556
+      unit: 1
+    mqtt:
+      room: livingroom
+      description: window_lamp
 
 
-switch: 
-  - mqttRoom: living_room
-    mqttDescription: tv_lamp
-    tellstickDeviceId: 2
-
-  - mqttRoom: man_cave
-    mqttDescription: desk_lamp
-    tellstickDeviceId: 1
-
-raw:
-  - tellstickMessage: class:command;protocol:arctech;model:selflearning;house:15139302;unit:10;group:0;method:turnon;
-    mqttRoom: hall
-    mqttSensorType: motion
-    mqttDescription: 15139302
-    mqttPayload: 1
+trigger:
+  - device:
+      protocol: arctech
+      model: selflearning-switch
+      house: 1923456
+      unit: 1
+    mqtt:
+      room: hall 
+      description: motion

@@ -1,0 +1,9 @@
+[Unit]
+Description=Tellstick to MQTT bridge Daemon
+After=network-online.target
+
+[Service]
+ExecStart=/usr/bin/python2.7 /srv/Tellstick-MQTT/tellstickService.py /srv/Tellstick-MQTT/
+
+[Install]
+WantedBy=multi-user.target
