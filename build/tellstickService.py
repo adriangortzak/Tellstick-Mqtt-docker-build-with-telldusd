@@ -29,16 +29,12 @@ shared_dict = {}
 lock = threading.Lock()
 
 my_logger = logging.getLogger('MyLogger')
-#my_logger.setLevel(logging.DEBUG)
 
 # create formatter
 formatter = logging.Formatter('tellstickService.py [%(levelname)s] %(message)s')
 
 handler = logging.handlers.SysLogHandler(address = '/dev/log')
 handler.setFormatter(formatter)
-#handler.setLevel(logging.DEBUG)
-
-#my_logger.addHandler(handler)
 
 try:
   configpath = sys.argv[1]
