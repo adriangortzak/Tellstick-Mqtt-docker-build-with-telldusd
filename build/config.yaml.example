@@ -5,6 +5,7 @@ mqtt:
     username: testuser
     password: testpassword
 
+debug: "false"
 
 sensor: 
   - device:
@@ -20,6 +21,7 @@ switch:
       model: selflearning-switch
       house: 1234567
       unit: 1
+      type: onoff
     mqtt:
       room: bedroom 
       description: window_lamp
@@ -30,6 +32,7 @@ switch:
       model: selflearning-switch
       house: 2134556
       unit: 1
+      type: dimmer
     mqtt:
       room: livingroom
       description: window_lamp
