@@ -288,7 +288,7 @@ def senML(id,sensorValue, sensortype):
     data["v"] = sensorValue
     payload.append(data)
 
-    return str(json.loads(Str(payload)))
+    return str(json.loads(str(payload)))
 
 myPrint("start thread 1", "INFO")
 t = threading.Thread(target=action_sub_thread, args = ())
