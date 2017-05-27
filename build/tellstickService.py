@@ -6,7 +6,7 @@ import re
 import threading
 from collections import namedtuple
 import ruamel.yaml as yaml
-
+import json
 import time
 import datetime
 from pylibftdi import USB_PID_LIST, USB_VID_LIST, Device as TellStick
@@ -288,7 +288,7 @@ def senML(id,sensorValue, sensortype):
     data["v"] = sensorValue
     payload.append(data)
 
-    return str(payload)
+    return str(json.loads(payload))
 
 myPrint("start thread 1", "INFO")
 t = threading.Thread(target=action_sub_thread, args = ())
