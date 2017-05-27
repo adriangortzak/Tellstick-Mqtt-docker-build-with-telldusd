@@ -18,7 +18,7 @@ USB_PID_LIST.append(0x0c31)
 USB_VID_LIST.append(0x1781)
 
 q = Queue()
-
+organisation="Gortz"
 baudrate=9600
 mydevice = None
 tellstick = TellStick(mode='t')
@@ -144,10 +144,10 @@ def parseReading(msg):
 
         for s in sensors: # Maybe not keep looking through all sensors after finding a match.
           if str(s.protocol) == protocol and s.model == model and s.id == sensorID:
-            my_publish("sensors/" + str(s.mqttRoom) + "/temperature/" + str(s.id) + "/sensors", senML(s.id,temp,"temperature"))
+            my_publish("sensors/"+ organisation+ "/"+ str(s.mqttRoom) + "/temperature/" + str(s.id) + "/sensors", senML(s.id,temp,"temperature"))
             myPrint("Publishing temperature data to broker: " + str(mqtt_host) + " and on topic: " + "sensors/" + s.mqttRoom + "/temperature/" + str(s.id) + "/sensors with message: " + str(temp), "INFO")
             if model == "temperaturehumidity":
-              my_publish("sensors/" + str(s.mqttRoom) + "/humidity/" + str(s.id) + "/sensors",senML(s.id,humidity,"humidity") )
+              my_publish("sensors/" + organisation+ "/" + str(s.mqttRoom) + "/humidity/" + str(s.id) + "/sensors",senML(s.id,humidity,"humidity") )
               myPrint("Publishing humidity data to broker: " + str(mqtt_host) + " and on topic: " + "sensors/" + s.mqttRoom + "/humidity/" + str(s.id) + "/sensors with message: " + str(humidity), "INFO")
             return
         unknownSensor = "Not found in config[class:sensor;protocol:" + str(protocol) + ";id:" + str(id) + ";model:" + str(model)
@@ -278,7 +278,7 @@ def my_publish(topic, message):
         pass
 
 def senML(id,sensorValue, sensortype):
-    payload ="[{"+'"'+"bn"+'"='+str(sensorValue)+"},"+"{"+'"n"='+str(sensortype)+","+'"v"='+sensorValue+"}]"
+    payload ="[{"+'"'+"bn"+'"='+str(sensorValue)+"},"+"{"+'"n"='+str(sensortype)+","+'"v"='+str(sensorValue)+"}]"
     return payload
 
 myPrint("start thread 1", "INFO")
