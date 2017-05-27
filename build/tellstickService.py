@@ -1,3 +1,4 @@
+
 import argparse
 import sys
 import paho.mqtt.client as mqtt
@@ -81,10 +82,10 @@ def writer():
         
         if str(type) == "onoff":
           if command == "0":
-            myPrint("Sending command TURNON", "INFO")
+            myPrint("Sending command TURNOFF", "INFO")
             msg = myDevice.stringForSelflearning(Device.TURNOFF, 0)
           elif command == "1":
-            myPrint("Sending command TURNOFF", "INFO")
+            myPrint("Sending command TURNON", "INFO")
             msg = myDevice.stringForMethod(Device.TURNON, 0)
         elif str(type) == "dimmer":
           myPrint("Sending command DIM " + str(command), "INFO")
@@ -94,6 +95,7 @@ def writer():
           toSend = 'S%s+' % msg['S']
           for x in range(0,sendcount):
             tellstick.write(toSend)
+            myPrint("Sending data sendcount: " + str(x+1), "DEBUG")
             time.sleep(1) # Make sure you sleep or else it won't like getting another command so soon! Was 2 seconds before
         else:
           myPrint("Invalid stringForMethod response", "DEBUG")
@@ -126,7 +128,8 @@ def parseReading(msg):
             my_publish(topic, method)
             return
           
-        myPrint("Not found in config [protocol:" + str(protocol) + ";model:" + str(model) + ";house:" + str(house) + ";unit:" + str(unit) + ";method:" + str(method) + ";]", "INFO")
+        myPrint("Received message from device not found in config [protocol:" + str(protocol) + ";model:" + str(model) + ";house:" + str(house) + ";unit:" + str(unit) + ";method:" + str(method) + ";]", "INFO")
+      myPrint("Detected as switch but not configured protocol [protocol:" + str(protocol) + ";model:" + str(model) + ";data:" + str(data_hex) + ";]", "DEBUG")
             
     elif msensor is not None:
       protocol = msensor.group(1)
@@ -144,15 +147,21 @@ def parseReading(msg):
         for s in sensors: # Maybe not keep looking through all sensors after finding a match.
           if str(s.protocol) == protocol and s.model == model and s.id == sensorID:
             my_publish("sensors/" + s.mqttRoom + "/temperature/" + str(s.id) + "/sensors", temp)
+            myPrint("Publishing temperature data to broker: " + str(mqtt_host) + " and on topic: " + "sensors/" + s.mqttRoom + "/temperature/" + str(s.id) + "/sensors with message: " + str(temp), "INFO")
             if model == "temperaturehumidity":
               my_publish("sensors/" + s.mqttRoom + "/humidity/" + str(s.id) + "/sensors", humidity)
+              myPrint("Publishing humidity data to broker: " + str(mqtt_host) + " and on topic: " + "sensors/" + s.mqttRoom + "/humidity/" + str(s.id) + "/sensors with message: " + str(humidity), "INFO")
             return
         unknownSensor = "Not found in config[class:sensor;protocol:" + str(protocol) + ";id:" + str(id) + ";model:" + str(model)
         if model == "temperature":
           unknownSensor += ";temp:" + str(temp) + ";]"
         elif model == "temperaturehumidity":
-          unknownSensor += ";humidity:" + str(humidity) + ";temp:" + str(temp) + ";]" 
-              
+          unknownSensor += ";humidity:" + str(humidity) + ";temp:" + str(temp) + ";]"
+        myPrint(unknownSensor, "INFO")
+      else:
+        myPrint("Received sensor message from device with a protocol that is not configured. [Protocol:" + str(protocol) + ";data:" + str(data) + ";]", "INFO")
+    else:
+      myPrint("Received unknown message: " + str(msg), "DEBUG")
 
     
 with open(configpath + "config.yaml", 'r') as stream:
@@ -247,7 +256,10 @@ def mqtt_trigger_handler(room,description,msg):
           q.put( (sw.protocol, sw.model, sw.house, sw.unit, msg.payload,sw.sendcount, sw.type) )
           with lock:
             shared_dict[sw.id] = (datetime.datetime.now(), msg.payload)
+        else:
+          myPrint("MQTT device " + str(sw.id) + " triggered again but I won't send another message so close after the last one", "INFO")
         return True
+    myPrint("Received MQTT message with room and description not configured Room: " + str(room) + " Description: " + str(description) + " and message: " + str(msg), "INFO")
     return False
 
 
