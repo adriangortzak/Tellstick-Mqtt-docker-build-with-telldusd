@@ -278,7 +278,7 @@ def my_publish(topic, message):
         pass
 
 def senML(id,sensorValue, sensortype):
-    payload ="[{"+'"'+"bn"+'"='+str(sensorValue)+"},"+"{"+'"n"='+str(sensortype)+","+'"v"='+str(sensorValue)+"}]"
+    payload ="[{"+'"'+"bn"+'"=tellstickid:'+str(id)+"},"+"{"+'"n"='+str(sensortype)+","+'"v"='+str(sensorValue)+"}]"
     return payload
 
 myPrint("start thread 1", "INFO")
