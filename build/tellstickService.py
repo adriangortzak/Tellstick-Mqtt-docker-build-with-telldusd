@@ -280,12 +280,12 @@ def my_publish(topic, message):
 def senML(id,sensorValue, sensortype):
     payload = []
     node = {}
-    node['bn'] = id
+    node["bn"] = id
     payload.append(node)
   #  for sensorValue in sensorValues:
     data = {}
-    data['n'] = sensortype
-    data['v'] = sensorValue
+    data["n"] = sensortype
+    data["v"] = sensorValue
     payload.append(data)
 
     return str(payload)
