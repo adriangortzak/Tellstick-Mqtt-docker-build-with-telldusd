@@ -1,5 +1,4 @@
 
-import argparse
 import sys
 import paho.mqtt.client as mqtt
 import paho.mqtt.publish as publish
@@ -13,7 +12,6 @@ import datetime
 from pylibftdi import USB_PID_LIST, USB_VID_LIST, Device as TellStick
 from rf433.Protocol import Protocol, Device
 from Queue import *
-import logging
 import logging.handlers
 
 USB_PID_LIST.append(0x0c31)
@@ -146,10 +144,10 @@ def parseReading(msg):
 
         for s in sensors: # Maybe not keep looking through all sensors after finding a match.
           if str(s.protocol) == protocol and s.model == model and s.id == sensorID:
-            my_publish("sensors/" + s.mqttRoom + "/temperature/" + str(s.id) + "/sensors", temp)
+            my_publish("sensors/" + str(s.mqttRoom) + "/temperature/" + str(s.id) + "/sensors", senML(s.id,temp,"temperature"))
             myPrint("Publishing temperature data to broker: " + str(mqtt_host) + " and on topic: " + "sensors/" + s.mqttRoom + "/temperature/" + str(s.id) + "/sensors with message: " + str(temp), "INFO")
             if model == "temperaturehumidity":
-              my_publish("sensors/" + s.mqttRoom + "/humidity/" + str(s.id) + "/sensors", humidity)
+              my_publish("sensors/" + str(s.mqttRoom) + "/humidity/" + str(s.id) + "/sensors",senML(s.id,humidity,"humidity") )
               myPrint("Publishing humidity data to broker: " + str(mqtt_host) + " and on topic: " + "sensors/" + s.mqttRoom + "/humidity/" + str(s.id) + "/sensors with message: " + str(humidity), "INFO")
             return
         unknownSensor = "Not found in config[class:sensor;protocol:" + str(protocol) + ";id:" + str(id) + ";model:" + str(model)
@@ -273,10 +271,24 @@ def on_message(client, userdata, msg):
       myPrint("Recived a topic that wasn't supported topic: ["+ msg.topic + "]", "INFO")
 
 def my_publish(topic, message):
-    publish.single(topic, payload=message, qos=0, retain=False, hostname=mqtt_host,
-    port=mqtt_port, client_id="", keepalive=60, will=None, auth= {'username':mqtt_username, 'password':mqtt_password}, tls=None,
-    protocol=mqtt.MQTTv31)
+    try:
+        publish.single(topic, payload=message, qos=0, retain=False, hostname=mqtt_host, port=mqtt_port, client_id="", keepalive=60, will=None, auth= {'username':mqtt_username, 'password':mqtt_password}, tls=None, protocol=mqtt.MQTTv31)
+    except:
+        myPrint("Couldn't send mqtt message","INFO")
+        pass
 
+def senML(id,sensorValue, sensortype):
+    payload = []
+    node = {}
+    node['bn'] = id
+    payload.append(node)
+  #  for sensorValue in sensorValues:
+    data = {}
+    data['n'] = sensortype
+    data['v'] = sensorValue
+    payload.append(data)
+
+    return str(payload)
 
 myPrint("start thread 1", "INFO")
 t = threading.Thread(target=action_sub_thread, args = ())
