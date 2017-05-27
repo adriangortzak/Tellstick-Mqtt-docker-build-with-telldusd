@@ -278,17 +278,8 @@ def my_publish(topic, message):
         pass
 
 def senML(id,sensorValue, sensortype):
-    payload = []
-    node = {}
-    node['bn'] = id
-    payload.append(node)
-  #  for sensorValue in sensorValues:
-    data = {}
-    data['n'] = sensortype
-    data['v'] = sensorValue
-    payload.append(data)
-
-    return (str(payload)).replace("\\","")
+    payload ="[{"+'"'+"bn"+'"='+str(sensorValue)+"},"+"{"+'"n"='+str(sensortype)+","+'"v"='+sensorValue+"}]"
+    return payload
 
 myPrint("start thread 1", "INFO")
 t = threading.Thread(target=action_sub_thread, args = ())
